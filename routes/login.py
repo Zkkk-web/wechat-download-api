@@ -79,10 +79,6 @@ async def create_session(sessionid: str, request: Request):
     - **sessionid**: 会话标识，由前端生成
     """
     try:
-        # [SEARCH] 调试：输出请求信息
-        cookie_header = request.headers.get("cookie", "")
-        print(f"[DEBUG] 创建Session - Cookie: {cookie_header[:100]}..." if len(cookie_header) > 100 else f"[DEBUG] 创建Session - Cookie: {cookie_header}")
-        
         # [*] 关键：调用bizlogin而不是scanloginqrcode！
         body = {
             "userlang": "zh_CN",
@@ -115,8 +111,6 @@ async def create_session(sessionid: str, request: Request):
         print(f"[DEBUG] Session响应状态码: {response.status_code}")
         print(f"[DEBUG] Session响应数据: {data}")
         print(f"[DEBUG] Session响应 Set-Cookie 数量: {len(response.headers.get_list('set-cookie'))}")
-        for i, cookie in enumerate(response.headers.get_list("set-cookie")):
-            print(f"[DEBUG] Cookie [{i}]: {cookie[:150]}..." if len(cookie) > 150 else f"[DEBUG] Cookie [{i}]: {cookie}")
         
         # 转发Set-Cookie（智能处理Secure标志）
         response_obj = JSONResponse(content=data)
@@ -159,10 +153,6 @@ async def get_qrcode(request: Request):
     **返回：** 二维码图片（PNG/JPEG 格式）
     """
     try:
-        # [SEARCH] 调试：输出请求信息
-        cookie_header = request.headers.get("cookie", "")
-        print(f"[DEBUG] 二维码请求 Cookie: {cookie_header[:100]}..." if len(cookie_header) > 100 else f"[DEBUG] 二维码请求 Cookie: {cookie_header}")
-        
         # 代理请求到微信
         response = await proxy_wx_request(
             request,
@@ -177,7 +167,6 @@ async def get_qrcode(request: Request):
         print(f"[DEBUG] 微信响应状态码: {response.status_code}")
         print(f"[DEBUG] 微信响应 Content-Type: {response.headers.get('content-type', 'N/A')}")
         print(f"[DEBUG] 微信响应内容长度: {len(response.content)} 字节")
-        print(f"[DEBUG] 微信响应 Set-Cookie: {response.headers.get('set-cookie', 'N/A')}")
         
         # 检查响应类型
         content_type = response.headers.get("content-type", "")
@@ -386,7 +375,7 @@ async def biz_login(request: Request):
         # 获取redirect_url中的token
         redirect_url = result.get("redirect_url", "")
         if not redirect_url:
-            print(f"[ERROR] no redirect_url, response: {result}")
+            print("[ERROR] no redirect_url")
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "未获取到登录凭证"}
@@ -398,7 +387,7 @@ async def biz_login(request: Request):
         token = parse_qs(parsed.query).get("token", [""])[0]
         
         if not token:
-            print(f"[ERROR] no Token, redirect_url: {redirect_url}")
+            print("[ERROR] no Token in redirect_url")
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "未获取到Token"}
@@ -466,7 +455,6 @@ async def biz_login(request: Request):
                 
                 print(f"[API] 搜索API响应状态: {search_response.status_code}")
                 search_result = search_response.json()
-                print(f"[API] 搜索结果: {search_result}")
                 
                 if search_result.get("base_resp", {}).get("ret") == 0:
                     accounts = search_result.get("list", [])
@@ -510,8 +498,7 @@ async def biz_login(request: Request):
         )
         
         print(f"[OK] 登录成功: {nickname} (fakeid: {fakeid})")
-        print(f"   Token: {token[:20]}...")
-        print(f"   Cookie已保存到.env")
+        print("   登录凭证已保存")
         
         await webhook.notify('login_success', {
             'nickname': nickname,
