@@ -10,6 +10,9 @@
 """
 
 import os
+import base64
+import hmac
+import re
 import logging
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -20,7 +23,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
@@ -135,6 +138,49 @@ class _GZipExceptMCP:
 
 
 app.add_middleware(_GZipExceptMCP)
+
+
+_PUBLIC_RSS_PATH = re.compile(
+    r"^/api/rss/(?:all|category/\d+|(?!subscribe(?:/|$)|batch-subscribe(?:/|$)|subscriptions(?:/|$)|poll(?:/|$)|status(?:/|$)|export(?:/|$)|category(?:/|$))[A-Za-z0-9_=-]+(?:/history)?)$"
+)
+
+
+def _is_public_get(method: str, path: str) -> bool:
+    """Keep only health and read-only RSS feeds public."""
+    return method == "GET" and (path == "/api/health" or bool(_PUBLIC_RSS_PATH.fullmatch(path)))
+
+
+def _authorized(headers: dict[bytes, bytes], password: str) -> bool:
+    """Validate the fixed admin Basic Auth account."""
+    if not password:
+        return True
+    expected = b"Basic " + base64.b64encode(f"admin:{password}".encode())
+    return hmac.compare_digest(headers.get(b"authorization", b""), expected)
+
+
+class _AdminAuthMiddleware:
+    """Protect credentials and mutations while leaving RSS readers working."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            method = scope.get("method", "GET").upper()
+            path = scope.get("path", "/")
+            password = os.getenv("ADMIN_PASSWORD", "")
+            if not _is_public_get(method, path) and not _authorized(dict(scope.get("headers") or []), password):
+                response = Response(
+                    "Authentication required",
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="wechat-download-api"'},
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_AdminAuthMiddleware)
 
 # 注册路由（注意：articles.router 必须在 search.router 之前注册，避免路由冲突）
 app.include_router(health.router, prefix="/api", tags=["健康检查"])

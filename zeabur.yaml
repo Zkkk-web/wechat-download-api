@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=https://schema.zeabur.app/template.json
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: AI Company WeChat Download Source
+spec:
+  description: Protected WeChat Official Account collector with public read-only RSS feeds.
+  services:
+    - name: wechat-download-api
+      template: GIT
+      domainKey: PUBLIC_DOMAIN
+      spec:
+        id: wechat-download-api
+        source:
+          source: GITHUB
+          repo: 1287290098
+          branch: codex/secure-public-rss
+        ports:
+          - id: web
+            port: 5000
+            type: HTTP
+        volumes:
+          - id: data
+            dir: /app/data
+        instructions:
+          - title: Admin username
+            content: admin
+          - title: Admin password
+            content: ${ADMIN_PASSWORD}
+        env:
+          ADMIN_PASSWORD:
+            default: ${PASSWORD}
+            expose: false
+          ARTICLES_PER_POLL:
+            default: "1"
+            expose: false
+          ENABLE_MCP:
+            default: "0"
+            expose: false
+          PUBLIC_DOMAIN:
+            default: ai-company-wechat-download
+            expose: false
+          RATE_LIMIT_ARTICLE_INTERVAL:
+            default: "5"
+            expose: false
+          RATE_LIMIT_GLOBAL:
+            default: "6"
+            expose: false
+          RATE_LIMIT_PER_IP:
+            default: "3"
+            expose: false
+          RSS_FETCH_FULL_CONTENT:
+            default: "false"
+            expose: false
+          RSS_POLL_INTERVAL:
+            default: "21600"
+            expose: false
+          TZ:
+            default: Asia/Shanghai
+            expose: false
+        configs: []
+        portForwarding:
+          enabled: false
